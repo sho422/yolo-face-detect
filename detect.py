@@ -34,7 +34,7 @@ import os
 import platform
 import sys
 from pathlib import Path
-
+from utils.plots import plot_one_box
 import torch
 
 FILE = Path(__file__).resolve()
@@ -44,6 +44,7 @@ if str(ROOT) not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from ultralytics.utils.plotting import Annotator, colors, save_one_box
+
 
 from models.common import DetectMultiBackend
 from utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadScreenshots, LoadStreams
@@ -205,9 +206,22 @@ def run(
                 pred = [pred, None]
             else:
                 pred = model(im, augment=augment, visualize=visualize)
-        # NMS
-        with dt[2]:
-            pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+
+        # NMS（非最大抑制）
+        pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+
+        # 人数カウントと表示
+        person_count = 0
+        for det in pred:
+            if len(det):
+                for *xyxy, conf, cls in reversed(det):
+                    if int(cls) == 0:  # クラス0 = person
+                        person_count += 1
+                        label = f'{names[int(cls)]} {conf:.2f}'
+                        plot_one_box(xyxy, im0s, label=label, color=colors(int(cls)), line_thickness=2)
+
+        cv2.putText(im0s, f'Person Count: {person_count}', (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 2)
 
         # Second-stage classifier (optional)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
@@ -362,6 +376,7 @@ def parse_opt():
     Example:
         ```python
         from ultralytics import YOLOv5
+from utils.plots import plot_one_box
         args = YOLOv5.parse_opt()
         ```
     """
